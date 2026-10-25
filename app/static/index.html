@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flock Energy — Urja Ops Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">Flock Energy</div>
+          <div class="brand-subtitle">Urja Meter Ops Gateway</div>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <div class="sync-badge" id="syncStatusBadge">
+          <span class="status-dot"></span>
+          <span id="syncStatusText">Syncing...</span>
+        </div>
+        <button class="btn btn-outline" id="manualSyncBtn" title="Re-sync with upstream portal">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          Sync
+        </button>
+        <a href="/docs" target="_blank" class="btn btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          API Docs
+        </a>
+      </div>
+    </header>
+
+    <!-- KPI Summary Cards -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Smart Meters</div>
+        <div class="kpi-value" id="kpiTotalMeters">—</div>
+        <div class="kpi-meta">Synchronized from Urja Portal</div>
+      </div>
+      <div class="kpi-card kpi-success">
+        <div class="kpi-label">Active / Installed</div>
+        <div class="kpi-value" id="kpiInstalledMeters">—</div>
+        <div class="kpi-meta">Grid operational</div>
+      </div>
+      <div class="kpi-card kpi-warning">
+        <div class="kpi-label">Faulty Alerts</div>
+        <div class="kpi-value" id="kpiFaultyMeters">—</div>
+        <div class="kpi-meta">Requires field inspection</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Distribution Transformers</div>
+        <div class="kpi-value" id="kpiTotalDTs">—</div>
+        <div class="kpi-meta">Substation assets</div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tabMeters">Smart Meters</button>
+      <button class="tab-btn" data-tab="tabTransformers">Transformers</button>
+      <button class="tab-btn" data-tab="tabHierarchy">Network Hierarchy</button>
+      <button class="tab-btn" data-tab="tabSpatial">Proximity Search</button>
+    </div>
+
+    <!-- TAB 1: Smart Meters -->
+    <div class="tab-pane active" id="tabMeters">
+      <div class="filter-bar">
+        <div class="search-input-wrapper">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="searchInput" placeholder="Search by Meter ID (e.g. J100000) or Serial..." />
+        </div>
+
+        <select id="makeFilter" class="select-filter">
+          <option value="">All Makes</option>
+          <option value="HPL">HPL</option>
+          <option value="Genus">Genus</option>
+          <option value="Secure">Secure</option>
+          <option value="Allied">Allied</option>
+          <option value="L&T">L&T</option>
+        </select>
+
+        <select id="statusFilter" class="select-filter">
+          <option value="">All Statuses</option>
+          <option value="Installed">Installed</option>
+          <option value="Faulty">Faulty</option>
+          <option value="Decommissioned">Decommissioned</option>
+        </select>
+
+        <select id="phaseFilter" class="select-filter">
+          <option value="">All Phases</option>
+          <option value="single">Single Phase</option>
+          <option value="three">Three Phase</option>
+        </select>
+
+        <button class="btn btn-secondary" id="resetFiltersBtn">Reset</button>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Meter ID</th>
+              <th>Serial No</th>
+              <th>Make</th>
+              <th>Phase</th>
+              <th>Status</th>
+              <th>DT Code</th>
+              <th>Build</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="metersTableBody">
+            <tr>
+              <td colspan="8" class="table-loading">Loading smart meters...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div class="pagination-bar">
+        <div class="pagination-info" id="paginationInfo">Showing 0 of 0</div>
+        <div class="pagination-controls">
+          <button class="btn btn-outline btn-sm" id="prevPageBtn" disabled>Previous</button>
+          <span class="page-indicator" id="pageIndicator">Page 1</span>
+          <button class="btn btn-outline btn-sm" id="nextPageBtn" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Transformers -->
+    <div class="tab-pane" id="tabTransformers">
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>DT Code</th>
+              <th>Transformer Name</th>
+              <th>11kV Feeder</th>
+              <th>Capacity (kVA)</th>
+              <th>Downstream Meters</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="transformersTableBody">
+            <tr>
+              <td colspan="6" class="table-loading">Loading transformers...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: Network Hierarchy -->
+    <div class="tab-pane" id="tabHierarchy">
+      <div class="hierarchy-card">
+        <div class="hierarchy-header">
+          <h3>Electrical Distribution Grid Topology</h3>
+          <p>Reconstructed tree ancestry from Jaipur Zone down through Feeders and DTs to endpoints.</p>
+        </div>
+        <div id="hierarchyTreeContainer" class="tree-container">
+          <div class="table-loading">Loading network hierarchy...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Proximity Search -->
+    <div class="tab-pane" id="tabSpatial">
+      <div class="spatial-card">
+        <h3>Geospatial Radius Query</h3>
+        <p>Find which smart meters are installed within a geographical radius of a coordinate.</p>
+        <div class="spatial-controls">
+          <div class="input-group">
+            <label>Latitude</label>
+            <input type="number" step="0.0001" id="spatialLat" value="26.9389" />
+          </div>
+          <div class="input-group">
+            <label>Longitude</label>
+            <input type="number" step="0.0001" id="spatialLng" value="75.8309" />
+          </div>
+          <div class="input-group">
+            <label>Radius (km)</label>
+            <input type="number" step="0.5" min="0.5" max="50" id="spatialRadius" value="3.0" />
+          </div>
+          <button class="btn btn-primary" id="spatialSearchBtn">Search Nearby Meters</button>
+        </div>
+
+        <div class="table-container" style="margin-top: 1.5rem;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Distance</th>
+                <th>Meter ID</th>
+                <th>Make</th>
+                <th>Status</th>
+                <th>DT Code</th>
+                <th>Coordinates</th>
+              </tr>
+            </thead>
+            <tbody id="spatialResultsBody">
+              <tr>
+                <td colspan="6" style="text-align:center; color: var(--text-muted); padding: 2rem;">
+                  Enter coordinates and click Search to run proximity query.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meter Detail Modal Drawer -->
+  <div class="modal-backdrop" id="meterModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2 id="modalMeterId">Meter J100000</h2>
+          <div class="modal-breadcrumbs" id="modalBreadcrumbs">Hierarchy path...</div>
+        </div>
+        <button class="modal-close-btn" id="modalCloseBtn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Nameplate Specs -->
+        <div class="specs-grid">
+          <div class="spec-item">
+            <div class="spec-label">Serial Number</div>
+            <div class="spec-value" id="modalSerial">—</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Manufacturer</div>
+            <div class="spec-value" id="modalMake">—</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Phase Type</div>
+            <div class="spec-value" id="modalPhase">—</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Installation Status</div>
+            <div class="spec-value" id="modalStatus">—</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Installation Type</div>
+            <div class="spec-value" id="modalInstallType">—</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Build Generation</div>
+            <div class="spec-value" id="modalBuild">—</div>
+          </div>
+        </div>
+
+        <!-- Power Quality & Consumption Summary -->
+        <div class="chart-section">
+          <div class="chart-header">
+            <h3>7-Day Consumption & Voltage Timeseries</h3>
+            <div class="metrics-pill-group" id="chartMetricsPills">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="consumptionChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
